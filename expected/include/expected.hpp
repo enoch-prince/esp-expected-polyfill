@@ -54,6 +54,9 @@ make_unexpected(E&& e) {
 template<typename T, typename E>
 class expected {
 public:
+    using value_type = T;
+    using error_type = E;
+
     // Default constructor (value-initialized T)
     constexpr expected() noexcept(std::is_nothrow_default_constructible<T>::value)
         : has_val_(true) 
@@ -135,8 +138,9 @@ public:
     constexpr const E&& error() const&& noexcept { return std::move(err_); }
     
     // Value-or-default access
-    constexpr T value_or(T&& default_val) const& {
-        return has_val_ ? val_ : std::forward<T>(default_val);
+    template<typename U>
+    constexpr T value_or(U&& default_val) const& {
+        return has_val_ ? val_ : static_cast<T>(std::forward<U>(default_val));
     }
     
 private:
@@ -145,6 +149,39 @@ private:
         T val_;
         E err_;
     };
+};
+
+
+/* ── Specialization: expected<void, E> ─────────────────────────────────── */
+template<typename E>
+class expected<void, E> {
+public:
+    using value_type = void;
+    using error_type = E;
+
+    // Constructors
+    constexpr expected() noexcept : has_val_(true) {}
+    
+    constexpr expected(const unexpected<E>& err) noexcept
+        : has_val_(false), err_(err.error()) {}
+    
+    constexpr expected(unexpected<E>&& err) noexcept
+        : has_val_(false), err_(std::move(err.error())) {}
+    
+    // Bool conversion: true if success (no error)
+    constexpr explicit operator bool() const noexcept { return has_val_; }
+    
+    // Access error
+    constexpr const E& error() const& noexcept { return err_; }
+    constexpr E& error() & noexcept { return err_; }
+    constexpr E&& error() && noexcept { return std::move(err_); }
+    constexpr const E&& error() const&& noexcept { return std::move(err_); }
+    
+    // No operator* for void specialization (nothing to return)
+    
+private:
+    bool has_val_;
+    E err_;
 };
 
 } // namespace tl
